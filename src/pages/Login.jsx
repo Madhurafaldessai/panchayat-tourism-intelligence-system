@@ -27,70 +27,48 @@ const Login = () => {
   };
 
   return (
-    // MAIN CONTAINER: Deep Green background
-    <div className="min-h-screen bg-linear-to-t from-neutral-900 to-green-900 bg-opacity-75 flex font-sans overflow-hidden">
+    // MAIN CONTAINER: Full screen, Flex-centered
+    <div className="min-h-screen relative flex items-center justify-center font-sans overflow-hidden bg-gray-900 p-6">
       
-      {/* LEFT COLUMN: Shrunk to 38% width to push everything leftward */}
-      <div className="hidden md:flex w-[38%] bg-white p-10 flex-col justify-center items-center md:rounded-r-[15rem] relative">
-        
-        {/* Central Illustration Area */}
-        <div className="flex-1 w-full flex items-center justify-center relative mt-8">
-          
-          {/* Organic Teal Blob Frame */}
-           <div
-            className="w-full max-w-125 aspect-square bg-[#e2fde4] flex items-center justify-center p- shadow-inner group transition-all"
-            style={{ borderRadius: '24% 76% 67% 35% / 40% 33% 69% 56%' }}
-            >
-            {/* Panchayat Image - mix-blend-multiply removes the white box */}
-            <img 
-              src="/panchayat-hero.jpg" 
-              alt="Panchayat" 
-              className="w-full h-full object-contain mix-blend-multiply opacity-95 group-hover:scale-105 transition-transform duration-500"
-            />
-          </div>
-          
-          {/* Decorative floating circles */}
-          <div className="absolute top-10 right-16 w-20 h-20  bg-[#d4e9e4]/40 rounded-full"></div>
-          <div className="absolute top-1/4 left-10 w-10 h-10 bg-[#d4e9e4]/50 rounded-full"></div>
-          <div className="absolute bottom-1/4 right-20 w-8 h-8 bg-[#d4e9e4]/30 rounded-full"></div>
-          <div className="absolute bottom-1/4 right-20 w-8 h-8 bg-[#d4e9e4]/30 rounded-full"></div>
-        </div>
-
-        {/* Bottom copyright aligned left */}
-        <div className="text-[10px] text-[#050e0b] font-medium mt-auto w-full text-left pl-6">
-          <span>© 2026 Panchayat Tourism System</span><br/>
-          <span>Admin Portal</span>
-        </div>
-
+      {/* BACKGROUND LAYER: Image with Reduced Whitish Overlay */}
+      <div className="absolute inset-0 z-0">
+        <img 
+          src="/panchayat-hero.jpg" 
+          alt="Panchayat Tourism Background" 
+          className="w-full h-full object-cover opacity-80"
+        />
+        <div className="absolute inset-0 bg-white/10 backdrop-blur-sm"></div>
       </div>
 
-      {/* RIGHT COLUMN: Expanded to 62% width to give the larger form room */}
-      {/* Added lg:pr-24 to subtly anchor it slightly left-of-center within its large space */}
-      <div className="w-full md:w-[62%] flex flex-col items-center justify-center p-12 lg:p-20 lg:pr-32 relative">
+      {/* FOREGROUND LAYER: The Minimized Centered Form */}
+      {/* Reduced max-width from 500px to 420px */}
+      <div className="relative z-15 w-full max-w-125">
         
-        {/* Form Container - Increased max-width from 400px to 500px for a significantly larger form */}
-        <div className="w-full max-w-125">
+        {/* Brutalist Form Card - Reduced padding from p-14 to p-10 */}
+        <div className="w-full bg-white border-[3px] border-black p-14 lg:p-14 shadow-[10px_10px_0px_0px_#bef264] transition-all hover:-translate-y-1 hover:shadow-[14px_14px_0px_0px_#bef264] duration-300">
           
-          {/* Heading - Increased to 5xl */}
-          <h2 className="text-5xl font-bold text-white text-left mb-12 tracking-tight">Login</h2>
+          {/* Heading - Reduced size slightly to match smaller card */}
+          <h2 className="text-4xl lg:text-5xl font-serif font-black text-black text-center mb-8 tracking-tight">
+            Login
+          </h2>
 
+          {/* Error Message */}
           {error && (
-            <div className="bg-red-50 text-red-500 text-sm font-bold px-4 py-3 rounded-xl mb-6 text-center border border-red-100">
+            <div className="bg-[#fda4af] border-[3px] border-black text-black text-sm font-bold px-4 py-3 mb-6 text-center">
               {error}
             </div>
           )}
 
-          <form onSubmit={handleLogin} className="space-y-8">
+          <form onSubmit={handleLogin} className="space-y-6">
             <div>
-              {/* Labels - Increased to text-sm */}
-              <label className="block text-sm font-bold text-white mb-3 ml-5 uppercase tracking-widest">
+              <label className="block text-xs font-black text-black mb-2 uppercase tracking-widest">
                 Admin ID
               </label>
-              {/* Inputs - Increased padding (py-5) and text size (text-base) */}
+              {/* Inputs - Slightly tighter padding to fit the minimized form */}
               <input 
                 type="text" 
                 placeholder="Enter your Admin ID"
-                className="w-full px-8 py-8 rounded-full border border-[#031708] shadow-xl/30 bg-[#c3d9cf] text-black placeholder-gray-600 focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/20 transition-all text-base font-medium shadow-inner"
+                className="w-full px-5 py-4 bg-white border-[3px] border-black text-black placeholder-gray-400 focus:outline-none focus:shadow-[4px_4px_0px_0px_#000] transition-shadow text-sm font-bold rounded-none"
                 value={adminId}
                 onChange={(e) => setAdminId(e.target.value)}
                 required
@@ -98,36 +76,39 @@ const Login = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-bold text-white mb-3 ml-5 uppercase tracking-widest">
+              <label className="block text-xs font-black text-black mb-2 uppercase tracking-widest">
                 Password
               </label>
               <input 
                 type="password" 
                 placeholder="Enter your password"
-                className="w-full px-8 py-8 rounded-full border border-[#031708] shadow-xl/30 bg-[#c3d9cf] text-black placeholder-gray-600 focus:outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/20 transition-all text-base font-large shadow-inner"
+                className="w-full px-5 py-4 bg-white border-[3px] border-black text-black placeholder-gray-400 focus:outline-none focus:shadow-[4px_4px_0px_0px_#000] transition-shadow text-sm font-bold rounded-none"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
               />
             </div>
 
-
-            {/* Button - Increased padding (py-5) and text size (text-lg) */}
+            {/* Brutalist Button */}
             <button 
               type="submit" 
-              className="w-full bg-[#0e9f3f] text-white font-extrabold py-8 rounded-full hover:bg-white hover:text-[#274B3C] transition-all shadow-lg shadow-black/10 mt-8 text-2xl tracking-wide"
+              className="w-full bg-[#111] text-white font-black py-5 border-[3px] border-black hover:bg-[#bef264] hover:text-black hover:shadow-[6px_6px_0px_0px_#000] transition-all mt-8 text-base tracking-widest uppercase rounded-none"
             >
-              Login
+              Access Portal
             </button>
           </form>
           
-          <div className="mt-10 text-center text-base">
-            <span className="text-gray-300">Don't have an account? </span>
-            <a href="#" className="text-white hover:text-[#62B5B1] font-bold transition-colors">Register Now</a>
+          {/* Register Link */}
+          <div className="mt-8 text-center text-xs font-medium text-gray-600">
+            <span>Don't have an account? </span>
+            <a href="#" className="text-black font-black border-b-2 border-black hover:bg-[#bef264] transition-colors px-1 pb-0.5 ml-1">
+              Register Now
+            </a>
           </div>
 
         </div>
       </div>
+      
     </div>
   );
 };
