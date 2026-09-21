@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabaseClient';
 import Heatmap from './Heatmap'; // Imported the Heatmap for the right side
 
-const Overview = () => {
+const Overview = ({ setActiveTab }) => {
   const [issues, setIssues] = useState([]);
   const [stats, setStats] = useState({ urgent: 0, unassigned: 0, resolved: 0 });
 
@@ -41,7 +41,7 @@ const Overview = () => {
           {/* Card 1: Urgent Action (Red) */}
           <div className="bg-white border-2 border-black p-6 rounded-md flex flex-col h-48 w-70 shadow-[6px_6px_0px_0px_#fca5a5] transition-transform hover:-translate-y-1 hover:shadow-[6px_10px_0px_0px_#fca5a5]">
             <div className="flex justify-between items-start mb-2">
-              <h3 className="text-md font-medium text-gray-800">Urgent Action</h3>
+              <h3 className="text-xl font-medium font-serif text-gray-800">URGENT ACTION</h3>
             </div>
             {/* Real data injected here */}
             <h2 className="text-5xl font-serif font-black flex items-end gap-1">
@@ -60,7 +60,7 @@ const Overview = () => {
           {/* Card 2: Unassigned Tasks (Yellow) */}
           <div className="bg-white border-2 border-black p-6 flex flex-col h-48 w-70 rounded-md shadow-[6px_6px_0px_0px_#fde047] transition-transform hover:-translate-y-1 hover:shadow-[6px_10px_0px_0px_#fde047]">
             <div className="flex justify-between items-start mb-2">
-              <h3 className="text-md font-medium text-gray-800">Unassigned Tasks</h3>
+              <h3 className="text-xl font-medium font-serif text-gray-800">UNASSIGNED TASKS</h3>
             </div>
             {/* Real data injected here */}
             <h2 className="text-5xl font-serif font-black">{stats.unassigned}</h2>
@@ -76,7 +76,7 @@ const Overview = () => {
           {/* Card 3: Solved Issues (Green) */}
           <div className="bg-white border-2 border-black p-6 flex flex-col rounded-md h-48 w-70 shadow-[6px_6px_0px_0px_#bef264] transition-transform hover:-translate-y-1 hover:shadow-[6px_10px_0px_0px_#bef264]">
             <div className="flex justify-between items-start mb-2">
-              <h3 className="text-md font-medium text-gray-800">Solved Issues</h3>
+              <h3 className="text-xl font-medium font-serif text-gray-800">SOLVED ISSUES</h3>
             </div>
             {/* Real data injected here */}
             <h2 className="text-5xl font-serif font-black flex items-end gap-1">
@@ -157,15 +157,20 @@ const Overview = () => {
       {/* ======================================================= */}
       <div className="hidden xl:flex w-40 shrink-0 flex-col">
         
-        {/* GREEN BOX: Heatmap 
-            Using h-48 and mb-16 to perfectly parallel the 3 cards on the left
-        */}
-        <div className="bg-white border-2 border-black p-3 h-110 w-150 shadow-[6px_6px_0px_0px_#4ade80] flex flex-col rounded-md mb-16">
+        {/* GREEN BOX: Heatmap (Double-click to open full Heatmap view) */}
+        <div 
+          onDoubleClick={() => setActiveTab && setActiveTab('heatmap')}
+          title="Double-click to open full heatmap"
+          className="bg-white border-2 border-black p-3 h-110 w-150 shadow-[6px_6px_0px_0px_#4ade80] flex flex-col rounded-md mb-16 cursor-pointer select-none transition-transform hover:-translate-y-0.5"
+        >
           <div className="flex justify-between items-center mb-2 px-1">
             <h3 className="text-xs font-black text-black tracking-widest uppercase">Live Heatmap</h3>
             <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse border border-black"></span>
           </div>
+
           <div className="flex-1 relative border-2 border-black bg-gray-100 z-10 w-full overflow-hidden">
+            {/* Transparent click shield to ensure double-click works instead of Leaflet zoom */}
+            <div className="absolute inset-0 z-20 cursor-pointer" />
             <Heatmap />
           </div>
         </div>

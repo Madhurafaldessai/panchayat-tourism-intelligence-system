@@ -23,7 +23,7 @@ const Dashboard = () => {
       <div className="flex-1 flex flex-col relative overflow-y-auto custom-scrollbar bg-white">
         
         {/* The Black Top Section */}
-        <div className="bg-[#111] text-white pt-16 pb-36 px-12 lg:px-16 flex-shrink-0">
+        <div className="bg-[#111] text-white pt-16 pb-36 px-12 lg:px-16 shrink-0">
           <div className="flex justify-between items-center">
             <h1 className="text-6xl font-serif font-bold tracking-tight capitalize">
               {villageName} Panchayat
@@ -37,7 +37,9 @@ const Dashboard = () => {
         {/* The Content Area - Overlaps the black background */}
         <div className="px-12 lg:px-16 -mt-20 relative z-10 pb-12 w-full max-w-7xl">
           
-          {activeTab === 'overview' && <Overview />}
+          {activeTab === 'overview' && (
+  <Overview setActiveTab={setActiveTab} />
+)}
           
           {/* 2. Replaced the placeholder with the actual Heatmap component in a Brutalist container */}
           {activeTab === 'heatmap' && (

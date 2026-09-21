@@ -25,10 +25,10 @@ const Sidebar = ({ activeTab, setActiveTab, onLogout }) => {
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
-              className={`w-full text-left px-8 py-4 border-b-2 border-transparent transition-all font-medium text-sm ${
+              className={`w-full text-left px-8 py-4 border-b-2 border-transparent transition-all font-large text-xl ${
                 isActive 
                   ? 'bg-gray-200 font-bold border-black' 
-                  : 'text-gray-600 hover:text-black hover:bg-gray-50'
+                  : 'text-gray-800 hover:text-black hover:bg-gray-50'
               }`}
             >
               {item.label}
@@ -41,7 +41,7 @@ const Sidebar = ({ activeTab, setActiveTab, onLogout }) => {
       <div className="mt-auto px-8 flex flex-col items-center text-center">
         <button 
           onClick={onLogout}
-          className="w-full bg-[#111] text-white py-3 font-bold text-sm border-2 border-black hover:bg-white hover:text-black transition-colors"
+          className="w-full bg-[#111] text-white py-3 font-bold text-md border-2 border-black hover:bg-white hover:text-black transition-colors"
         >
           Logout
         </button>
