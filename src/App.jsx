@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BrowserRouter as Router, Navigate, Route, Routes } from 'react-router-dom';
+import { HashRouter as Router, Navigate, Route, Routes } from 'react-router-dom';
 import { isSupabaseConfigured, supabase } from './supabaseClient';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -66,7 +66,7 @@ function App() {
   }
 
   return (
-    <Router basename="/panchayat-tourism-intelligence-system">
+    <Router>
       <Routes>
         <Route
           path="/login"
