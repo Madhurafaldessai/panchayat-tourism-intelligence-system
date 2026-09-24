@@ -1,6 +1,18 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = 'https://yoigxaznyhkhhvpcfhxp.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlvaWd4YXpueWhraGh2cGNmaHhwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc2MjQxNzAsImV4cCI6MjA5MzIwMDE3MH0.4L7YCY4sK-sjF2ds9GKbB6MwYzPL5cLG-Djnr7DbcuY'
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
+
+// The anonymous key is expected to be public in a browser build. Access control
+// must be enforced by Supabase Auth and Row Level Security, never by this client.
+export const supabase = isSupabaseConfigured
+  ? createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+      },
+    })
+  : null;

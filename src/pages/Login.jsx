@@ -1,115 +1,306 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 
 const Login = () => {
-  const [adminId, setAdminId] = useState('');
+  const [villageName, setVillageName] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
+  const navigate = useNavigate();
+
+  const handleLogin = async (event) => {
+    event.preventDefault();
     setError(null);
+    setIsSubmitting(true);
 
-    const { data, error: dbError } = await supabase
-      .from('admin_logins')
-      .select('*')
-      .eq('admin_id', adminId)
-      .eq('password', password)
-      .single();
+    const authIdentifier = `${villageName
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, '-')}@panchayat.local`;
 
-    if (dbError || !data) {
-      setError("Invalid Admin ID or Password");
-    } else {
-      localStorage.setItem('isAdminLoggedIn', 'true');
-      localStorage.setItem('adminVillage', data.village_name);
-      window.location.href = '/dashboard';
+    const { data, error: authError } =
+      await supabase.auth.signInWithPassword({
+        email: authIdentifier,
+        password,
+      });
+
+    if (authError || !data.user) {
+      setError('Invalid village name or password.');
+      setIsSubmitting(false);
+      return;
     }
+
+    if (data.user.app_metadata?.role !== 'admin') {
+      await supabase.auth.signOut();
+      setError('This account is not authorised for the admin portal.');
+      setIsSubmitting(false);
+      return;
+    }
+
+    navigate('/dashboard', { replace: true });
   };
 
   return (
-    // MAIN CONTAINER: Full screen, Flex-centered
-    <div className="min-h-screen relative flex items-center justify-center font-sans overflow-hidden bg-gray-900 p-6">
-      
-      {/* BACKGROUND LAYER: Image with Reduced Whitish Overlay */}
+    <main
+      className="
+        relative
+        flex
+        min-h-screen
+        items-center
+        justify-center
+        overflow-hidden
+        bg-gray-900
+        p-4
+        sm:p-6
+        font-sans
+      "
+    >
+      {/* Background */}
       <div className="absolute inset-0 z-0">
-        <img 
-          src="/panchayat-hero.jpg" 
-          alt="Panchayat Tourism Background" 
-          className="w-full h-full object-cover opacity-80"
-        />
-        <div className="absolute inset-0 bg-white/10 backdrop-blur-sm"></div>
+        <picture>
+          <source
+            srcSet={`${import.meta.env.BASE_URL}panchayat-hero.jpg`}
+            type="image/jpeg"
+          />
+
+          <img
+            src={`${import.meta.env.BASE_URL}panchayat-hero.jpg`}
+            alt=""
+            className="h-full w-full object-cover opacity-80"
+            fetchPriority="high"
+          />
+        </picture>
+
+        <div className="absolute inset-0 bg-white/10 backdrop-blur-sm" />
       </div>
 
-      {/* FOREGROUND LAYER: The Minimized Centered Form */}
-      {/* Reduced max-width from 500px to 420px */}
-      <div className="relative z-15 w-full max-w-125">
-        
-        {/* Brutalist Form Card - Reduced padding from p-14 to p-10 */}
-        <div className="w-full bg-white border-[3px] border-black p-14 lg:p-14 shadow-[10px_10px_0px_0px_#bef264] transition-all hover:-translate-y-1 hover:shadow-[14px_14px_0px_0px_#bef264] duration-300">
-          
-          {/* Heading - Reduced size slightly to match smaller card */}
-          <h2 className="text-4xl lg:text-5xl font-serif font-black text-black text-center mb-8 tracking-tight">
+      {/* Login Section */}
+      <section className="relative z-10 w-full max-w-2xl">
+        <div
+          className="
+            min-h-[800px]
+            w-full
+            border-[3px]
+            border-black
+            bg-white
+            px-6
+            py-10
+            shadow-[8px_8px_0_0_#bef264]
+            transition-all
+            duration-300
+            hover:-translate-y-1
+            hover:shadow-[12px_12px_0_0_#bef264]
+
+            sm:min-h-[700px]
+            sm:px-10
+            sm:py-12
+            sm:shadow-[10px_10px_0_0_#bef264]
+            sm:hover:shadow-[14px_14px_0_0_#bef264]
+
+            lg:px-14
+            lg:py-14
+          "
+        >
+          {/* Heading */}
+          <h1
+            className="
+              mb-10
+              text-center
+              font-serif
+              text-4xl
+              font-black
+              tracking-tight
+              text-black
+
+              sm:mb-12
+              sm:text-5xl
+            "
+          >
             Login
-          </h2>
+          </h1>
 
           {/* Error Message */}
           {error && (
-            <div className="bg-[#fda4af] border-[3px] border-black text-black text-sm font-bold px-4 py-3 mb-6 text-center">
+            <div
+              className="
+                mb-6
+                border-[3px]
+                border-black
+                bg-[#d81028]
+                px-4
+                py-3
+                text-center
+                text-sm
+                font-bold
+                text-black
+              "
+              role="alert"
+            >
               {error}
             </div>
           )}
 
-          <form onSubmit={handleLogin} className="space-y-6">
+          {/* Login Form */}
+          <form
+            onSubmit={handleLogin}
+            className="space-y-7 sm:space-y-8"
+          >
+            {/* Village Name */}
             <div>
-              <label className="block text-xs font-black text-black mb-2 uppercase tracking-widest">
-                Admin ID
+              <label
+                htmlFor="village-name"
+                className="
+                  mb-2
+                  block
+                  text-base
+                  font-black
+                  uppercase
+                  tracking-widest
+                  text-black
+
+                  sm:text-lg
+                "
+              >
+                Village name
               </label>
-              {/* Inputs - Slightly tighter padding to fit the minimized form */}
-              <input 
-                type="text" 
-                placeholder="Enter your Admin ID"
-                className="w-full px-5 py-4 bg-white border-[3px] border-black text-black placeholder-gray-400 focus:outline-none focus:shadow-[4px_4px_0px_0px_#000] transition-shadow text-sm font-bold rounded-none"
-                value={adminId}
-                onChange={(e) => setAdminId(e.target.value)}
+
+              <input
+                id="village-name"
+                type="text"
+                autoComplete="username"
+                placeholder="Enter your village name"
+                className="
+                  w-full
+                  rounded-none
+                  border-[3px]
+                  border-black
+                  bg-white
+                  px-4
+                  py-4
+                  text-sm
+                  font-bold
+                  text-black
+                  placeholder-gray-400
+                  transition-shadow
+                  focus:shadow-[4px_4px_0_0_#000]
+                  focus:outline-none
+
+                  sm:px-5
+                  sm:py-5
+                "
+                value={villageName}
+                onChange={(event) =>
+                  setVillageName(event.target.value)
+                }
                 required
               />
             </div>
 
+            {/* Password */}
             <div>
-              <label className="block text-xs font-black text-black mb-2 uppercase tracking-widest">
+              <label
+                htmlFor="admin-password"
+                className="
+                  mb-2
+                  block
+                  text-base
+                  font-black
+                  uppercase
+                  tracking-widest
+                  text-black
+
+                  sm:text-lg
+                "
+              >
                 Password
               </label>
-              <input 
-                type="password" 
+
+              <input
+                id="admin-password"
+                type="password"
+                autoComplete="current-password"
                 placeholder="Enter your password"
-                className="w-full px-5 py-4 bg-white border-[3px] border-black text-black placeholder-gray-400 focus:outline-none focus:shadow-[4px_4px_0px_0px_#000] transition-shadow text-sm font-bold rounded-none"
+                className="
+                  w-full
+                  rounded-none
+                  border-[3px]
+                  border-black
+                  bg-white
+                  px-4
+                  py-4
+                  text-sm
+                  font-bold
+                  text-black
+                  placeholder-gray-400
+                  transition-shadow
+                  focus:shadow-[4px_4px_0_0_#000]
+                  focus:outline-none
+
+                  sm:px-5
+                  sm:py-5
+                "
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(event) =>
+                  setPassword(event.target.value)
+                }
                 required
               />
             </div>
 
-            {/* Brutalist Button */}
-            <button 
-              type="submit" 
-              className="w-full bg-[#111] text-white font-black py-5 border-[3px] border-black hover:bg-[#bef264] hover:text-black hover:shadow-[6px_6px_0px_0px_#000] transition-all mt-8 text-base tracking-widest uppercase rounded-none"
+            {/* Login Button */}
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="
+                mt-8
+                w-full
+                rounded-none
+                border-[3px]
+                border-black
+                bg-[#111]
+                py-5
+                text-sm
+                font-black
+                uppercase
+                tracking-widest
+                text-white
+                transition-all
+                hover:bg-[#bef264]
+                hover:text-black
+                hover:shadow-[6px_6px_0_0_#000]
+                disabled:cursor-not-allowed
+                disabled:opacity-60
+
+                sm:text-base
+              "
             >
-              Access Portal
+              {isSubmitting
+                ? 'Signing in…'
+                : 'Access Portal'}
             </button>
           </form>
-          
-          {/* Register Link */}
-          <div className="mt-8 text-center text-xs font-medium text-gray-600">
-            <span>Don't have an account? </span>
-            <a href="#" className="text-black font-black border-b-2 border-black hover:bg-[#bef264] transition-colors px-1 pb-0.5 ml-1">
-              Register Now
-            </a>
-          </div>
 
+          {/* Information */}
+          <p
+            className="
+              mt-8
+              text-center
+              text-xs
+              font-medium
+              leading-relaxed
+              text-gray-600
+
+              sm:mt-10
+            "
+          >
+            Administrator accounts are issued by the panchayat
+            system administrator.
+          </p>
         </div>
-      </div>
-      
-    </div>
+      </section>
+    </main>
   );
 };
 

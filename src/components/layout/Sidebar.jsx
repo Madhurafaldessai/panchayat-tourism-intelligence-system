@@ -1,34 +1,29 @@
-import React from 'react';
-
 const Sidebar = ({ activeTab, setActiveTab, onLogout }) => {
   const menuItems = [
     { id: 'overview', label: 'Overview' },
-    { id: 'heatmap', label: ' Heatmap' },
+    { id: 'heatmap', label: 'Heatmap' },
     { id: 'issues-solved', label: 'Analytics' },
   ];
 
   return (
-    <div className="w-60 h-full bg-white border-r-2 border-black flex flex-col py-8 z-50">
-      
-      {/* Logo Block matching the top left of your image */}
-      <div className="px-8 mb-16">
-        <div className="w-45 h-10 border-2 border-black flex items-center justify-center font-serif font-bold text-xl">
+    <aside className="z-50 flex w-full shrink-0 flex-col border-b-2 border-black bg-white py-4 lg:min-h-screen lg:w-60 lg:border-b-0 lg:border-r-2 lg:py-8">
+      <div className="mb-4 px-6 lg:mb-16 lg:px-8">
+        <div className="flex h-10 w-45 items-center justify-center border-2 border-black font-serif text-xl font-bold">
           AdminPortal
         </div>
       </div>
 
-      {/* Navigation Links */}
-      <nav className="flex flex-col w-full">
+      <nav className="flex w-full overflow-x-auto lg:flex-col" aria-label="Dashboard navigation">
         {menuItems.map((item) => {
           const isActive = activeTab === item.id;
           return (
             <button
               key={item.id}
+              type="button"
               onClick={() => setActiveTab(item.id)}
-              className={`w-full text-left px-8 py-4 border-b-2 border-transparent transition-all font-large text-xl ${
-                isActive 
-                  ? 'bg-gray-200 font-bold border-black' 
-                  : 'text-gray-800 hover:text-black hover:bg-gray-50'
+              aria-current={isActive ? 'page' : undefined}
+              className={`shrink-0 px-6 py-3 text-left text-base transition-all lg:w-full lg:px-8 lg:py-4 lg:text-xl ${
+                isActive ? 'bg-gray-200 font-bold' : 'text-gray-800 hover:bg-gray-50 hover:text-black'
               }`}
             >
               {item.label}
@@ -37,17 +32,16 @@ const Sidebar = ({ activeTab, setActiveTab, onLogout }) => {
         })}
       </nav>
 
-      {/* Bottom Upgrade/Logout Section */}
-      <div className="mt-auto px-8 flex flex-col items-center text-center">
-        <button 
+      <div className="mt-4 px-6 lg:mt-auto lg:px-8">
+        <button
+          type="button"
           onClick={onLogout}
-          className="w-full bg-[#111] text-white py-3 font-bold text-md border-2 border-black hover:bg-white hover:text-black transition-colors"
+          className="w-full border-2 border-black bg-[#111] py-3 text-md font-bold text-white transition-colors hover:bg-white hover:text-black"
         >
           Logout
         </button>
       </div>
-
-    </div>
+    </aside>
   );
 };
 

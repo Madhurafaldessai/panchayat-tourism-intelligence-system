@@ -1,62 +1,65 @@
-import React, { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '../supabaseClient';
 import Sidebar from '../components/layout/Sidebar';
 import Overview from '../components/dashboard/Overview';
-import Heatmap from '../components/dashboard/Heatmap'; // <-- 1. Imported the Heatmap
 
-const Dashboard = () => {
+const Heatmap = lazy(() => import('../components/dashboard/Heatmap'));
+
+const MapLoading = () => (
+  <div className="flex h-full min-h-80 items-center justify-center border-2 border-black bg-gray-100 p-6 text-center text-sm font-bold uppercase tracking-widest">
+    Loading map…
+  </div>
+);
+
+const Dashboard = ({ user }) => {
   const [activeTab, setActiveTab] = useState('overview');
-  const villageName = localStorage.getItem('adminVillage') || 'Balli';
+  const navigate = useNavigate();
+  const villageName = user.app_metadata?.village_name || user.user_metadata?.village_name || 'Panchayat';
+  const villageId = user.app_metadata?.village_id;
 
-  const handleLogout = () => {
-    localStorage.removeItem('isAdminLoggedIn');
-    localStorage.removeItem('adminVillage');
-    window.location.href = '/login';
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate('/login', { replace: true });
   };
 
   return (
-    <div className="flex h-screen bg-white font-sans overflow-hidden text-black selection:bg-black selection:text-white">
-      
-      {/* Left Sidebar */}
+    <div className="flex min-h-screen flex-col overflow-x-hidden bg-white font-sans text-black selection:bg-black selection:text-white lg:flex-row">
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} onLogout={handleLogout} />
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col relative overflow-y-auto custom-scrollbar bg-white">
-        
-        {/* The Black Top Section */}
-        <div className="bg-[#111] text-white pt-16 pb-36 px-12 lg:px-16 shrink-0">
-          <div className="flex justify-between items-center">
-            <h1 className="text-6xl font-serif font-bold tracking-tight capitalize">
+      <main className="flex min-w-0 flex-1 flex-col bg-white">
+        <header className="shrink-0 bg-[#111] px-6 pb-28 pt-10 text-white md:px-12 md:pt-16 lg:px-16 lg:pb-36">
+          <div className="flex items-center justify-between gap-6">
+            <h1 className="text-3xl font-serif font-bold tracking-tight capitalize md:text-5xl lg:text-6xl">
               {villageName} Panchayat
             </h1>
-            <div className="w-12 h-12 bg-[#fef08a] rounded-full border-2 border-black flex items-center justify-center text-black font-bold shadow-[2px_2px_0px_0px_rgba(255,255,255,1)] flex-shrink-0 text-xl">
+            <div
+              className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 border-black bg-[#fef08a] text-xl font-bold text-black shadow-[2px_2px_0_0_rgba(255,255,255,1)]"
+              aria-label={`${villageName} administrator`}
+            >
               {villageName[0]?.toUpperCase()}
             </div>
           </div>
-        </div>
+        </header>
 
-        {/* The Content Area - Overlaps the black background */}
-        <div className="px-12 lg:px-16 -mt-20 relative z-10 pb-12 w-full max-w-7xl">
-          
-          {activeTab === 'overview' && (
-  <Overview setActiveTab={setActiveTab} />
-)}
-          
-          {/* 2. Replaced the placeholder with the actual Heatmap component in a Brutalist container */}
+        <div className="relative z-10 -mt-16 w-full flex-1 px-4 pb-12 md:-mt-20 md:px-8 lg:px-12">
+          {activeTab === 'overview' && <Overview setActiveTab={setActiveTab} villageId={villageId} />}
+
           {activeTab === 'heatmap' && (
-            <div className="w-385 h-225 mt-8 bg-white border-[3px] border-black p-2 shadow-[12px_12px_0px_0px_#000] relative z-20">
-              <Heatmap />
-            </div>
+            <section className="relative z-20 mt-8 h-[70vh] min-h-105 w-full bg-white p-2 shadow-[12px_12px_0_0_#000]">
+              <Suspense fallback={<MapLoading />}>
+                <Heatmap villageId={villageId} />
+              </Suspense>
+            </section>
           )}
 
           {activeTab === 'issues-solved' && (
-            <div className="text-black font-bold text-xl mt-8 border-[3px] border-black p-8 bg-white shadow-[8px_8px_0px_0px_#000]">
-              Analytics Coming Soon...
-            </div>
+            <section className="mt-8 border-[3px] border-black bg-white p-8 text-xl font-bold text-black shadow-[8px_8px_0_0_#000]">
+              Analytics is being connected to the reporting pipeline.
+            </section>
           )}
-
         </div>
-
-      </div>
+      </main>
     </div>
   );
 };

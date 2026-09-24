@@ -1,213 +1,311 @@
-import React, { useState, useEffect } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../supabaseClient';
-import Heatmap from './Heatmap'; // Imported the Heatmap for the right side
 
-const Overview = ({ setActiveTab }) => {
+const Heatmap = lazy(() => import('./Heatmap'));
+
+const MapLoading = () => (
+  <div className="flex h-full items-center justify-center bg-gray-100 p-4 text-center text-xs font-bold uppercase tracking-widest">
+    Loading map…
+  </div>
+);
+
+const normaliseStatus = (status) => String(status || '').trim().toLowerCase();
+
+const Overview = ({ setActiveTab, villageId }) => {
   const [issues, setIssues] = useState([]);
-  const [stats, setStats] = useState({ urgent: 0, unassigned: 0, resolved: 0 });
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [sortBy, setSortBy] = useState('recent');
+  const [selectedIssueId, setSelectedIssueId] = useState(null);
+
+  const loadIssues = useCallback(async () => {
+    setIsLoading(true);
+    const { data, error: queryError } = await supabase
+      .from('issues')
+      .select('id, citizen_name, type, status, created_at')
+      .eq('village_id', villageId)
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    if (queryError) {
+      setError('Issues could not be loaded. Check the database policy and try again.');
+      setIsLoading(false);
+      return;
+    }
+
+    setIssues(data || []);
+    setError(null);
+    setIsLoading(false);
+  }, [villageId]);
 
   useEffect(() => {
-    fetchIssues();
-  }, []);
+    void loadIssues();
 
-  const fetchIssues = async () => {
-    const { data } = await supabase.from('issues').select('*');
-    if (data) {
-      setIssues(data);
-      setStats({
-        urgent: data.filter(i => i.status === 'urgent').length,
-        unassigned: data.filter(i => i.status === 'pending').length,
-        resolved: data.filter(i => i.status === 'resolved').length
-      });
+    const channel = supabase
+      .channel('admin-issues-overview')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'issues', filter: `village_id=eq.${villageId}` },
+        loadIssues,
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [loadIssues, villageId]);
+
+  const stats = useMemo(
+    () => ({
+      urgent: issues.filter((issue) => ['urgent', 'critical'].includes(normaliseStatus(issue.status))).length,
+      unassigned: issues.filter((issue) => ['pending', 'unassigned'].includes(normaliseStatus(issue.status))).length,
+      resolved: issues.filter((issue) => ['resolved', 'closed'].includes(normaliseStatus(issue.status))).length,
+    }),
+    [issues],
+  );
+
+  const sortedIssues = useMemo(() => {
+    const nextIssues = [...issues];
+    if (sortBy === 'status') {
+      return nextIssues.sort((first, second) => normaliseStatus(first.status).localeCompare(normaliseStatus(second.status)));
     }
-  };
 
-  // Mock data for the right-side blue box
-  const weeklyData = [40, 70, 45, 90, 65, 80, 55];
-  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return nextIssues.sort(
+      (first, second) => new Date(second.created_at || 0).getTime() - new Date(first.created_at || 0).getTime(),
+    );
+  }, [issues, sortBy]);
+
+  const weeklyReports = useMemo(() => {
+    const dates = Array.from({ length: 7 }, (_, index) => {
+      const date = new Date();
+      date.setHours(0, 0, 0, 0);
+      date.setDate(date.getDate() - (6 - index));
+      return date;
+    });
+    const counts = dates.map(() => 0);
+
+    issues.forEach((issue) => {
+      const createdAt = new Date(issue.created_at);
+      const matchingIndex = dates.findIndex((date) => date.toDateString() === createdAt.toDateString());
+      if (matchingIndex !== -1) counts[matchingIndex] += 1;
+    });
+
+    return dates.map((date, index) => ({
+      label: new Intl.DateTimeFormat(undefined, { weekday: 'short' }).format(date),
+      value: counts[index],
+    }));
+  }, [issues]);
+
+  const maxWeeklyReports = Math.max(1, ...weeklyReports.map((report) => report.value));
+  const selectedIssue = issues.find((issue) => issue.id === selectedIssueId);
 
   return (
-    // A simple flex wrapper to hold your left side and the new right side side-by-side
-    <div className="flex gap-8 items-start w-full">
+    <div className="grid w-full flex-1 grid-cols-1 items-start gap-6 lg:grid-cols-12">
       
-      {/* ======================================================= */}
-      {/* LEFT SIDE: YOUR EXACT CODE, COMPLETELY UNTOUCHED        */}
-      {/* ======================================================= */}
-      <div className="w-full max-w-6xl animate-fade-in font-sans">
+      {/* LEFT COLUMN: Expanded to 7 columns (approx 58% width) */}
+      <section className="col-span-1 flex min-w-0 flex-col gap-6 font-sans lg:col-span-7 animate-fade-in">
         
-        {/* 3 Neo-Brutalist Stat Cards Overlapping the Black Header */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
-          
-          {/* Card 1: Urgent Action (Red) */}
-          <div className="bg-white border-2 border-black p-6 rounded-md flex flex-col h-48 w-70 shadow-[6px_6px_0px_0px_#fca5a5] transition-transform hover:-translate-y-1 hover:shadow-[6px_10px_0px_0px_#fca5a5]">
-            <div className="flex justify-between items-start mb-2">
-              <h3 className="text-xl font-medium font-serif text-gray-800">URGENT ACTION</h3>
+        {/* Top 3 Metric Cards */}
+        <div className="grid w-full grid-cols-1 gap-4 xl:grid-cols-3">
+          <article className="flex min-h-48 min-w-0 flex-col rounded-md border-2 border-black bg-white p-6 shadow-[6px_6px_0_0_#fca5a5] transition-transform hover:-translate-y-1 hover:shadow-[6px_10px_0_0_#fca5a5]">
+            <h2 className="mb-4 font-serif text-2xl font-medium text-black">URGENT ACTION</h2>
+            <div className="flex min-h-0 flex-1 items-end justify-between gap-4">
+              <p className="font-serif text-5xl font-black leading-none">{stats.urgent}</p>
+              <div className="relative h-14 min-w-0 flex-1 overflow-hidden border-2 border-black bg-[#fca5a5]/30">
+              <div className="absolute inset-0 bg-[linear-gradient(to_right,#00000020_1px,transparent_1px),linear-gradient(to_bottom,#00000020_1px,transparent_1px)] bg-size-[10px_10px]" />
+              <svg className="absolute inset-0 h-full w-full" preserveAspectRatio="none" viewBox="0 0 100 100" aria-hidden="true">
+                <polyline points="0,100 20,80 40,85 60,50 80,40 100,10" fill="none" stroke="black" strokeWidth="3" />
+              </svg>
+              </div>
             </div>
-            {/* Real data injected here */}
-            <h2 className="text-5xl font-serif font-black flex items-end gap-1">
-              <span className="text-2xl mb-1"></span>{stats.urgent}
-            </h2>
-            
-            {/* Spiking line graph visual */}
-            <div className="mt-auto h-16 bg-[#fca5a5]/30 relative border-t-2 border-black overflow-hidden border-x-2 border-b-2">
-               <div className="absolute inset-0 bg-[linear-gradient(to_right,#00000020_1px,transparent_1px),linear-gradient(to_bottom,#00000020_1px,transparent_1px)] bg-size-[10px_10px]"></div>
-               <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none" viewBox="0 0 100 100">
-                 <polyline points="0,100 20,80 40,85 60,50 80,40 100,10" fill="none" stroke="black" strokeWidth="3" />
-               </svg>
-            </div>
-          </div>
+          </article>
 
-          {/* Card 2: Unassigned Tasks (Yellow) */}
-          <div className="bg-white border-2 border-black p-6 flex flex-col h-48 w-70 rounded-md shadow-[6px_6px_0px_0px_#fde047] transition-transform hover:-translate-y-1 hover:shadow-[6px_10px_0px_0px_#fde047]">
-            <div className="flex justify-between items-start mb-2">
-              <h3 className="text-xl font-medium font-serif text-gray-800">UNASSIGNED TASKS</h3>
+          <article className="flex min-h-48 min-w-0 flex-col rounded-md border-2 border-black bg-white p-6 shadow-[6px_6px_0_0_#fde047] transition-transform hover:-translate-y-1 hover:shadow-[6px_10px_0_0_#fde047]">
+            <h2 className="mb-4 font-serif text-2xl font-medium text-black">UNASSIGNED TASKS</h2>
+            <div className="flex min-h-0 flex-1 items-end justify-between gap-4">
+              <p className="font-serif text-5xl font-black leading-none">{stats.unassigned}</p>
+              <div className="flex h-10 min-w-0 flex-1 items-end gap-1">
+              <div className="h-full w-1/4 border-2 border-black bg-[#facc15]" />
+              <div className="h-3/4 w-1/4 border-2 border-black bg-[#facc15]" />
+              <div className="h-1/2 w-1/2 border-b-2 border-dashed border-gray-300" />
+              </div>
             </div>
-            {/* Real data injected here */}
-            <h2 className="text-5xl font-serif font-black">{stats.unassigned}</h2>
-            
-            {/* Bar chart visual */}
-            <div className="mt-auto flex gap-1 items-end h-8">
-              <div className="w-1/4 h-full bg-[#facc15] border-2 border-black"></div>
-              <div className="w-1/4 h-3/4 bg-[#facc15] border-2 border-black"></div>
-              <div className="w-1/2 border-b-2 border-dashed border-gray-300 h-1/2"></div>
-            </div>
-          </div>
+          </article>
 
-          {/* Card 3: Solved Issues (Green) */}
-          <div className="bg-white border-2 border-black p-6 flex flex-col rounded-md h-48 w-70 shadow-[6px_6px_0px_0px_#bef264] transition-transform hover:-translate-y-1 hover:shadow-[6px_10px_0px_0px_#bef264]">
-            <div className="flex justify-between items-start mb-2">
-              <h3 className="text-xl font-medium font-serif text-gray-800">SOLVED ISSUES</h3>
+          <article className="flex min-h-48 min-w-0 flex-col rounded-md border-2 border-black bg-white p-6 shadow-[6px_6px_0_0_#bef264] transition-transform hover:-translate-y-1 hover:shadow-[6px_10px_0_0_#bef264]">
+            <h2 className="mb-4 font-serif text-2xl font-medium text-black">SOLVED ISSUES</h2>
+            <div className="flex min-h-0 flex-1 items-end justify-between gap-4">
+              <p className="font-serif text-5xl font-black leading-none">{stats.resolved}</p>
+              <div className="relative h-14 min-w-0 flex-1 overflow-hidden border-2 border-black bg-[#bef264]/30">
+              <div className="absolute inset-0 bg-[linear-gradient(to_right,#00000020_1px,transparent_1px),linear-gradient(to_bottom,#00000020_1px,transparent_1px)] bg-size-[10px_10px]" />
+              <svg className="absolute inset-0 h-full w-full" preserveAspectRatio="none" viewBox="0 0 100 100" aria-hidden="true">
+                <polyline points="0,100 30,70 50,75 80,30 100,0" fill="none" stroke="black" strokeWidth="3" />
+              </svg>
+              </div>
             </div>
-            {/* Real data injected here */}
-            <h2 className="text-5xl font-serif font-black flex items-end gap-1">
-              <span className="text-2xl mb-1"></span>{stats.resolved}
-            </h2>
-            
-            {/* Rising line graph visual */}
-            <div className="mt-auto h-16 bg-[#bef264]/30 relative border-t-2 border-black overflow-hidden border-x-2 border-b-2">
-               <div className="absolute inset-0 bg-[linear-gradient(to_right,#00000020_1px,transparent_1px),linear-gradient(to_bottom,#00000020_1px,transparent_1px)] bg-size-[10px_10px]"></div>
-               <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none" viewBox="0 0 100 100">
-                 <polyline points="0,100 30,70 50,75 80,30 100,0" fill="none" stroke="black" strokeWidth="3" />
-               </svg>
-            </div>
-          </div>
-
+          </article>
         </div>
 
-        {/* The Issue Registry Table */}
-        <div>
-          <div className="flex justify-between items-end mb-6">
-            <h2 className="text-3xl font-serif font-bold text-black">Issue Registry</h2>
-            <span className="text-sm font-medium text-gray-600">Sort by: <span className="text-black font-bold border-b border-black cursor-pointer">Status</span></span>
+        {/* Issue Registry */}
+        <section aria-labelledby="issue-registry-heading">
+          <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+            <h2 id="issue-registry-heading" className="font-serif text-3xl font-bold text-black">
+              Issue Registry
+            </h2>
+            <label className="text-sm font-medium text-gray-600">
+              Sort by:{' '}
+              <select
+                value={sortBy}
+                onChange={(event) => setSortBy(event.target.value)}
+                className="border-b border-black bg-transparent font-bold text-black outline-none"
+              >
+                <option value="recent">Newest</option>
+                <option value="status">Status</option>
+              </select>
+            </label>
           </div>
-          
-          <div className="w-full">
-            <table className="w-full text-left">
+
+          {error && (
+            <div className="mb-4 flex flex-col items-center justify-center gap-3 border-2 border-black bg-[#fda4af] p-4 text-center text-sm font-bold sm:flex-row sm:justify-between" role="alert">
+              <span className="text-center">{error}</span>
+              <button type="button" onClick={loadIssues} className="border-2 border-black bg-white px-3 py-1 text-xs uppercase">
+                Retry
+              </button>
+            </div>
+          )}
+
+          <div className="overflow-x-auto border-b-2 border-black">
+            <table className="w-full min-w-150 text-left" aria-busy={isLoading}>
+              <thead className="sr-only">
+                <tr>
+                  <th scope="col">Reporter</th>
+                  <th scope="col">Issue type</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Action</th>
+                </tr>
+              </thead>
               <tbody className="text-sm">
-                {issues.length > 0 ? issues.map((issue) => (
-                  <tr key={issue.id} className="border-t-2 border-black hover:bg-gray-50 transition-colors group">
-                    
-                    {/* Grip dots & Avatar mock */}
-                    <td className="py-4 pl-4 w-16">
-                      <div className="grid grid-cols-2 gap-0.5 w-3 opacity-30 group-hover:opacity-100 transition-opacity">
-                        <div className="w-1 h-1 bg-black rounded-full"></div><div className="w-1 h-1 bg-black rounded-full"></div>
-                        <div className="w-1 h-1 bg-black rounded-full"></div><div className="w-1 h-1 bg-black rounded-full"></div>
-                        <div className="w-1 h-1 bg-black rounded-full"></div><div className="w-1 h-1 bg-black rounded-full"></div>
+                {sortedIssues.map((issue) => (
+                  <tr key={issue.id} className="group border-t-2 border-black transition-colors hover:bg-gray-50">
+                    <td className="flex items-center gap-4 py-4 pl-4 font-bold text-black">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full border border-black bg-[#f22f2f] text-xs" aria-hidden="true">
+                        👤
                       </div>
-                    </td>
-                    
-                    <td className="py-4 font-bold text-black flex items-center gap-4">
-                      <div className="w-8 h-8 rounded-full bg-[#f22f2f] border border-black flex items-center justify-center text-xs">👤</div>
                       {issue.citizen_name || 'Citizen User'}
                     </td>
-
                     <td className="py-4">
-                      <div className="font-bold text-black">{issue.type}</div>
-                      <div className="text-gray-500 text-xs">Issue Type</div>
+                      <div className="font-bold text-black">{issue.type || 'Uncategorised'}</div>
+                      <div className="text-xs text-gray-500">Issue Type</div>
                     </td>
-
                     <td className="py-4">
-                      <div className="font-bold text-black text-xs uppercase tracking-wider">{issue.status}</div>
-                      <div className="text-gray-500 text-xs">Current Status</div>
+                      <div className="text-xs font-bold uppercase tracking-wider text-black">{issue.status || 'pending'}</div>
+                      <div className="text-xs text-gray-500">Current Status</div>
                     </td>
-
-                    <td className="py-4 text-right pr-4">
-                      <button className="bg-white border-2 border-black px-4 py-1.5 font-bold text-xs hover:bg-black hover:text-white transition-colors">
-                        View Action
+                    <td className="py-4 pr-4 text-right">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedIssueId(issue.id)}
+                        className="border-2 border-black bg-white px-4 py-1.5 text-xs font-bold transition-colors hover:bg-black hover:text-white"
+                      >
+                        View details
                       </button>
                     </td>
                   </tr>
-                )) : (
-                  <tr className="border-t-2 border-b-2 border-black">
-                    <td colSpan="5" className="py-12 text-center text-gray-500 font-bold uppercase tracking-widest text-sm">
+                ))}
+                {!isLoading && sortedIssues.length === 0 && (
+                  <tr className="border-t-2 border-black">
+                    <td colSpan="4" className="py-12 text-center text-sm font-bold uppercase tracking-widest text-gray-500">
                       No issues registered yet.
+                    </td>
+                  </tr>
+                )}
+                {isLoading && (
+                  <tr className="border-t-2 border-black">
+                    <td colSpan="4" className="py-12 text-center text-sm font-bold uppercase tracking-widest text-gray-500">
+                      Loading issue registry…
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
-            <div className="w-full border-t-2 border-black"></div>
           </div>
-        </div>
 
-      </div>
+          {selectedIssue && (
+            <aside className="mt-6 border-2 border-black bg-gray-50 p-5" aria-live="polite">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="font-serif text-xl font-bold">Issue details</h3>
+                  <p className="mt-2 text-sm">
+                    {selectedIssue.type || 'Uncategorised'} · {selectedIssue.status || 'pending'} · Reported by{' '}
+                    {selectedIssue.citizen_name || 'Citizen User'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedIssueId(null)}
+                  className="border-2 border-black bg-white px-3 py-1 text-xs font-bold uppercase"
+                >
+                  Close
+                </button>
+              </div>
+            </aside>
+          )}
+        </section>
+      </section>
 
-      {/* ======================================================= */}
-      {/* RIGHT SIDE: HEATMAP & ANALYTICS                       */}
-      {/* ======================================================= */}
-      <div className="hidden xl:flex w-40 shrink-0 flex-col">
-        
-        {/* GREEN BOX: Heatmap (Double-click to open full Heatmap view) */}
-        <div 
-          onDoubleClick={() => setActiveTab && setActiveTab('heatmap')}
-          title="Double-click to open full heatmap"
-          className="bg-white border-2 border-black p-3 h-110 w-150 shadow-[6px_6px_0px_0px_#4ade80] flex flex-col rounded-md mb-16 cursor-pointer select-none transition-transform hover:-translate-y-0.5"
+      {/* RIGHT COLUMN: Reduced to 5 columns (approx 42% width) */}
+      <aside className="col-span-1 flex min-w-0 flex-col gap-6 lg:col-span-5">
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => setActiveTab('heatmap')}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') setActiveTab('heatmap');
+          }}
+          title="Open full heatmap"
+          className="flex h-116 cursor-pointer select-none flex-col rounded-md border-2 border-black bg-white p-3 shadow-[6px_6px_0_0_#4ade80] transition-transform hover:-translate-y-0.5"
         >
-          <div className="flex justify-between items-center mb-2 px-1">
-            <h3 className="text-xs font-black text-black tracking-widest uppercase">Live Heatmap</h3>
-            <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse border border-black"></span>
+          <div className="mb-2 flex items-center justify-between px-1">
+            <h2 className="text-xs font-black uppercase tracking-widest text-black">Live Heatmap</h2>
+            <span className="h-2.5 w-2.5 animate-pulse rounded-full border border-black bg-red-500" aria-label="Live updates enabled" />
           </div>
-
-          <div className="flex-1 relative border-2 border-black bg-gray-100 z-10 w-full overflow-hidden">
-            {/* Transparent click shield to ensure double-click works instead of Leaflet zoom */}
-            <div className="absolute inset-0 z-20 cursor-pointer" />
-            <Heatmap />
+          <div className="pointer-events-none relative z-10 flex-1 overflow-hidden border-2 border-black bg-gray-100">
+            <Suspense fallback={<MapLoading />}>
+              <Heatmap />
+            </Suspense>
           </div>
         </div>
 
-        {/* BLUE BOX: Analytics Chart */}
-        <div className="bg-white border-2 border-black p-5 h-110 w-150 shadow-[6px_6px_0px_0px_#3b82f6] flex flex-col rounded-md">
+        <section className="flex h-115 min-h-0 flex-col rounded-md border-2 border-black bg-white p-5 shadow-[6px_6px_0_0_#3b82f6]">
           <div className="mb-4">
-             <h3 className="text-sm font-black text-black tracking-widest uppercase mb-1">Weekly Reports</h3>
-             <p className="text-[10px] font-bold text-gray-500 uppercase">+14% vs last week</p>
+            <h2 className="mb-1 text-sm font-black uppercase tracking-widest text-black">Weekly Reports</h2>
+            <p className="text-[10px] font-bold uppercase text-gray-500">Last seven days</p>
           </div>
-          
-          {/* Brutalist Bar Chart Mock */}
-          <div className="flex-1 flex items-end gap-2.5 border-b-2 border-l-2 border-black pt-4 pl-2 relative w-full">
-            <div className="absolute w-full border-t border-dashed border-gray-300 top-1/4 left-0 z-0"></div>
-            <div className="absolute w-full border-t border-dashed border-gray-300 top-2/4 left-0 z-0"></div>
-            <div className="absolute w-full border-t border-dashed border-gray-300 top-3/4 left-0 z-0"></div>
 
-            {weeklyData.map((height, index) => (
-              <div 
-                key={index} 
-                className="flex-1 bg-black hover:bg-[#3b82f6] border-2 border-black transition-colors relative z-10 group" 
-                style={{ height: `${height}%` }}
+          <div className="relative flex flex-1 items-end gap-2.5 border-b-2 border-l-2 border-black pb-0 pl-2 pt-4">
+            {[25, 50, 75].map((position) => (
+              <div key={position} className="absolute left-0 z-0 w-full border-t border-dashed border-gray-300" style={{ top: `${100 - position}%` }} />
+            ))}
+            {weeklyReports.map((report) => (
+              <div
+                key={report.label}
+                className="group relative z-10 flex-1 border-2 border-black bg-black transition-colors hover:bg-[#3b82f6]"
+                style={{ height: `${Math.max(4, (report.value / maxWeeklyReports) * 100)}%` }}
               >
-                <span className="absolute -top-7 left-1/2 -translate-x-1/2 bg-white border-2 border-black px-1.5 py-0.5 text-[10px] font-bold opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-20">
-                  {height}
+                <span className="pointer-events-none absolute -top-7 left-1/2 -translate-x-1/2 border-2 border-black bg-white px-1.5 py-0.5 text-[10px] font-bold opacity-0 transition-opacity group-hover:opacity-100">
+                  {report.value}
                 </span>
               </div>
             ))}
           </div>
 
-          <div className="flex justify-between text-[10px] font-black mt-3 px-1 uppercase text-black w-full">
-            {days.map(day => <span key={day}>{day}</span>)}
+          <div className="mt-3 flex w-full justify-between px-1 text-[10px] font-black uppercase text-black">
+            {weeklyReports.map((report) => (
+              <span key={report.label}>{report.label}</span>
+            ))}
           </div>
-        </div>
-
-      </div>
-
+        </section>
+      </aside>
     </div>
   );
 };

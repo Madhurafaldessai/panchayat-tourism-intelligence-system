@@ -1,16 +1,29 @@
-# React + Vite
+# Panchayat Tourism Intelligence System
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+An administrator dashboard for monitoring tourism-related issues in a panchayat. The current implementation includes authenticated admin access, a live issue registry, status summaries, a Supabase Realtime-backed heatmap, and a seven-day reports chart.
 
-Currently, two official plugins are available:
+## Run locally
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```bash
+cp .env.example .env.local
+npm install
+npm run dev
+```
 
-## React Compiler
+Fill the two environment variables with the project URL and a rotated Supabase anonymous key. Create Supabase Auth users with `app_metadata.role` set to `admin` before signing in. The login form accepts a village name and maps it to the Supabase Auth identifier `<normalized-village-name>@panchayat.local`; for example, `Balli` uses `balli@panchayat.local`. Create or provision the Auth user with that identifier and a password. The expected `issues` fields are `id`, `citizen_name`, `type`, `status`, `created_at`, `latitude`, `longitude`, and optional `severity`.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Brief cross-check
 
-## Expanding the ESLint configuration
+| Brief item | Status |
+| --- | --- |
+| Admin monitoring dashboard | Built; registry, summary cards and read-only detail panel are present. |
+| Real-time heatmap | Built in the UI; enable the `issues` table in Supabase Realtime and apply RLS. |
+| Category/status filtering | Partly built; the dashboard sorts but has no citizen-facing report filters. |
+| Geotagged citizen report flow | Not built. |
+| Queue-based report ingestion | Not built. |
+| Geo-clustering and deduplication | Not built. |
+| Time-series analytics pipeline | Partly built; a seven-day client view exists, not a pipeline. |
+| Priority scoring | Not built. |
+| Hotspot prediction and similar-issue AI | Not built. |
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+See [Supabase security setup](supabase/SECURITY_SETUP.md) for the mandatory production-side controls and the RLS policy template.

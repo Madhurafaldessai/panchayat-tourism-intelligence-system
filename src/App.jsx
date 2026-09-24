@@ -1,55 +1,89 @@
-import React, { useEffect, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { supabase } from './supabaseClient';
+import { useEffect, useState } from 'react';
+import { BrowserRouter as Router, Navigate, Route, Routes } from 'react-router-dom';
+import { isSupabaseConfigured, supabase } from './supabaseClient';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 
+const isAdmin = (user) => user?.app_metadata?.role === 'admin';
+
 function App() {
-  // We use a boolean state since we are manually managing the login via our custom table
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check localStorage to see if the user successfully logged in through our table
-    const checkLoginStatus = () => {
-      const authStatus = localStorage.getItem('isAdminLoggedIn') === 'true';
-      setIsLoggedIn(authStatus);
+    if (!supabase) {
       setLoading(false);
+      return undefined;
+    }
+
+    let isMounted = true;
+
+    const loadSession = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (isMounted) {
+        setSession(data.session);
+        setLoading(false);
+      }
     };
 
-    checkLoginStatus();
+    void loadSession();
 
-    // Optional: Listen for storage changes in case the user logs out in another tab
-    window.addEventListener('storage', checkLoginStatus);
-    return () => window.removeEventListener('storage', checkLoginStatus);
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (isMounted) {
+        setSession(nextSession);
+        setLoading(false);
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
-  // Simple loading screen to prevent flickering while checking localStorage
+  if (!isSupabaseConfigured) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-gray-50 p-6 font-sans text-black">
+        <section className="max-w-xl border-[3px] border-black bg-white p-8 shadow-[8px_8px_0_0_#bef264]">
+          <h1 className="font-serif text-3xl font-black">Configuration required</h1>
+          <p className="mt-4 leading-7">
+            Add <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code> to a local
+            <code> .env.local</code> file or your deployment environment. See <code>.env.example</code>.
+          </p>
+        </section>
+      </main>
+    );
+  }
+
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-gray-50 text-emerald-900 font-semibold">
+      <div className="flex h-screen items-center justify-center bg-gray-50 font-semibold text-emerald-900">
         Verifying Admin Access...
       </div>
     );
   }
 
   return (
-    <Router>
+    <Router basename="/panchayat-tourism-intelligence-system">
       <Routes>
-        {/* If not logged in, show Login page. If already logged in, skip to Dashboard */}
-        <Route 
-          path="/login" 
-          element={!isLoggedIn ? <Login /> : <Navigate to="/dashboard" />} 
+        <Route
+          path="/login"
+          element={isAdmin(session?.user) ? <Navigate replace to="/dashboard" /> : <Login />}
         />
-        
-        {/* Protected Dashboard Route: Redirects to login if the flag isn't in localStorage */}
-        <Route 
-          path="/dashboard" 
-          element={isLoggedIn ? <Dashboard /> : <Navigate to="/login" />} 
+        <Route
+          path="/dashboard"
+          element={
+            isAdmin(session?.user) ? (
+              <Dashboard user={session.user} />
+            ) : (
+              <Navigate replace to="/login" />
+            )
+          }
         />
-
-        {/* Default Route sends everyone to login check */}
-        <Route path="/" element={<Navigate to="/login" />} />
+        <Route path="/" element={<Navigate replace to="/login" />} />
+        <Route path="*" element={<Navigate replace to="/login" />} />
       </Routes>
     </Router>
   );
