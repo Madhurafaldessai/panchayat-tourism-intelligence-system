@@ -29,7 +29,7 @@ const SolvedIssues = ({ villageId }) => {
     setIsLoading(true);
     const { data, error: queryError } = await supabase
       .from('reports')
-      .select('id, category, description, severity, status, created_at, resolved_at, village_id')
+      .select('id, category, description, severity, status, created_at, resolved_at, resolution_image_url, resolved_by, village_id')
       .eq('village_id', villageId)
       .order('created_at', { ascending: false })
       .limit(200);
@@ -137,6 +137,7 @@ const SolvedIssues = ({ villageId }) => {
               <th className="px-5 py-4">Category</th>
               <th className="px-5 py-4">Description</th>
               <th className="px-5 py-4">Severity</th>
+              <th className="px-5 py-4">Resolution image</th>
               <th className="px-5 py-4">Resolved date</th>
               <th className="px-5 py-4">Status</th>
             </tr>
@@ -151,20 +152,27 @@ const SolvedIssues = ({ villageId }) => {
                     {issue.severity || 'Normal'}
                   </span>
                 </td>
+                <td className="px-5 py-5">
+                  {issue.resolution_image_url ? (
+                    <img src={issue.resolution_image_url} alt="Resolution" className="h-14 w-20 border-2 border-black object-cover" />
+                  ) : (
+                    <span className="text-xs font-bold text-gray-500">Unavailable</span>
+                  )}
+                </td>
                 <td className="whitespace-nowrap px-5 py-5 font-bold">{formatDate(issue.resolved_at || issue.created_at)}</td>
                 <td className="px-5 py-5 text-xs font-black uppercase tracking-widest">{issue.status}</td>
               </tr>
             ))}
             {!isLoading && solvedIssues.length === 0 && (
               <tr>
-                <td colSpan="5" className="px-5 py-16 text-center text-sm font-black uppercase tracking-widest text-gray-500">
+                <td colSpan="6" className="px-5 py-16 text-center text-sm font-black uppercase tracking-widest text-gray-500">
                   No solved issues found.
                 </td>
               </tr>
             )}
             {isLoading && (
               <tr>
-                <td colSpan="5" className="px-5 py-16 text-center text-sm font-black uppercase tracking-widest text-gray-500">
+                <td colSpan="6" className="px-5 py-16 text-center text-sm font-black uppercase tracking-widest text-gray-500">
                   Loading solved issues…
                 </td>
               </tr>

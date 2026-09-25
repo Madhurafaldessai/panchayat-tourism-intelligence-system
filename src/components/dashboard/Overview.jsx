@@ -11,13 +11,13 @@ const MapLoading = () => (
 
 const normaliseStatus = (status) => String(status || '').trim().toLowerCase();
 
-const Overview = ({ setActiveTab, villageId }) => {
+const Overview = ({ setActiveTab, villageId, resolvedBy }) => {
   const [issues, setIssues] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [sortBy, setSortBy] = useState('recent');
   const [selectedIssueId, setSelectedIssueId] = useState(null);
-  const [updatingIssueId, setUpdatingIssueId] = useState(null);
+  const [uploadingIssueId, setUploadingIssueId] = useState(null);
   const [actionError, setActionError] = useState(null);
 
   const loadIssues = useCallback(async () => {
@@ -30,7 +30,7 @@ const Overview = ({ setActiveTab, villageId }) => {
     setIsLoading(true);
     const { data, error: queryError } = await supabase
       .from('reports')
-      .select('id, citizen_name, category, title, description, severity, status, image_url, location_name, latitude, longitude, created_at, resolved_at')
+      .select('id, citizen_name, category, title, description, severity, status, image_url, resolution_image_url, location_name, latitude, longitude, created_at, resolved_at, resolved_by')
       .eq('village_id', villageId)
       .order('created_at', { ascending: false })
       .limit(100);
@@ -46,31 +46,58 @@ const Overview = ({ setActiveTab, villageId }) => {
     setIsLoading(false);
   }, [villageId]);
 
-  const handleMarkSolved = async (issue) => {
-    setUpdatingIssueId(issue.id);
+  const handleResolutionUpload = async (issue, file) => {
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setActionError('Please select an image file.');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setActionError('The resolution image must be smaller than 5 MB.');
+      return;
+    }
+
+    setUploadingIssueId(issue.id);
     setActionError(null);
-    const { data, error: updateError } = await supabase
+    const extension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+    const filePath = `${villageId}/${issue.id}/resolution-${Date.now()}.${extension}`;
+    const { error: uploadError } = await supabase.storage
+      .from('issue-images')
+      .upload(filePath, file, { contentType: file.type, upsert: false });
+
+    if (uploadError) {
+      setActionError(uploadError.message || 'The resolution image could not be uploaded.');
+      setUploadingIssueId(null);
+      return;
+    }
+
+    const { data: publicUrlData } = supabase.storage.from('issue-images').getPublicUrl(filePath);
+    const resolvedAt = new Date().toISOString();
+    const { error: updateError } = await supabase
       .from('reports')
       .update({
         status: 'solved',
-        resolved_at: new Date().toISOString(),
-        resolution_description: 'Marked as solved by the village administrator.',
+        resolution_image_url: publicUrlData.publicUrl,
+        resolved_at: resolvedAt,
+        resolved_by: resolvedBy || 'Village administrator',
       })
       .eq('id', issue.id)
       .eq('village_id', villageId);
 
     if (updateError) {
       setActionError(updateError.message || 'The report could not be updated.');
-      setUpdatingIssueId(null);
+      setUploadingIssueId(null);
       return;
     }
 
     setIssues((currentIssues) => currentIssues.map((currentIssue) => (
       currentIssue.id === issue.id
-        ? { ...currentIssue, status: 'solved', resolved_at: new Date().toISOString() }
+        ? { ...currentIssue, status: 'solved', resolution_image_url: publicUrlData.publicUrl, resolved_at: resolvedAt, resolved_by: resolvedBy }
         : currentIssue
     )));
-    setUpdatingIssueId(null);
+    setUploadingIssueId(null);
   };
 
   useEffect(() => {
@@ -331,27 +358,47 @@ const Overview = ({ setActiveTab, villageId }) => {
                     )}
                   </div>
 
-                  {selectedIssue.image_url && (
-                    <img src={selectedIssue.image_url} alt="Reported issue" className="h-56 w-full border-2 border-black object-cover" />
-                  )}
+                  <div className="space-y-3">
+                    {selectedIssue.image_url && (
+                      <div>
+                        <p className="mb-1 text-xs font-black uppercase tracking-widest text-gray-500">Citizen image</p>
+                        <img src={selectedIssue.image_url} alt="Reported issue" className="h-40 w-full border-2 border-black object-cover" />
+                      </div>
+                    )}
+                    {selectedIssue.resolution_image_url && (
+                      <div>
+                        <p className="mb-1 text-xs font-black uppercase tracking-widest text-gray-500">Resolution image</p>
+                        <img src={selectedIssue.resolution_image_url} alt="Resolved issue" className="h-40 w-full border-2 border-black object-cover" />
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex flex-wrap items-center justify-between gap-4 border-t-2 border-black pt-4">
                   <p className="text-xs font-bold text-gray-500">
                     Submitted {new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(selectedIssue.created_at))}
                   </p>
-                  <button
-                    type="button"
-                    onClick={() => handleMarkSolved(selectedIssue)}
-                    disabled={updatingIssueId === selectedIssue.id || normaliseStatus(selectedIssue.status) === 'solved'}
-                    className="border-2 border-black bg-[#bef264] px-4 py-3 text-xs font-black uppercase tracking-widest shadow-[4px_4px_0_0_#000] transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+                  <label
+                    htmlFor={`resolution-image-${selectedIssue.id}`}
+                    className="cursor-pointer border-2 border-black bg-[#bef264] px-4 py-3 text-xs font-black uppercase tracking-widest shadow-[4px_4px_0_0_#000] transition-transform hover:-translate-y-0.5"
                   >
-                    {updatingIssueId === selectedIssue.id
-                      ? 'Saving…'
-                      : normaliseStatus(selectedIssue.status) === 'solved'
-                        ? 'Solved'
-                        : 'Mark as solved'}
-                  </button>
+                    {uploadingIssueId === selectedIssue.id
+                      ? 'Uploading…'
+                      : selectedIssue.resolution_image_url
+                        ? 'Replace solved image'
+                        : 'Upload solved image'}
+                  </label>
+                  <input
+                    id={`resolution-image-${selectedIssue.id}`}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="sr-only"
+                    disabled={uploadingIssueId === selectedIssue.id}
+                    onChange={(event) => {
+                      void handleResolutionUpload(selectedIssue, event.target.files?.[0]);
+                      event.target.value = '';
+                    }}
+                  />
                 </div>
                 {actionError && (
                   <p className="mt-4 border-2 border-black bg-[#fda4af] p-3 text-sm font-bold" role="alert">

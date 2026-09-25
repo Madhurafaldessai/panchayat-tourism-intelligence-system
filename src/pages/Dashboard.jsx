@@ -44,7 +44,7 @@ const Dashboard = ({ user }) => {
         </header>
 
         <div className="relative z-10 -mt-16 w-full flex-1 px-4 pb-12 md:-mt-20 md:px-8 lg:px-12">
-          {activeTab === 'overview' && <Overview setActiveTab={setActiveTab} villageId={villageId} />}
+          {activeTab === 'overview' && <Overview setActiveTab={setActiveTab} villageId={villageId} resolvedBy={user.email} />}
 
           {activeTab === 'heatmap' && (
             <section className="relative z-20 mt-8 h-[70vh] min-h-105 w-full bg-white p-2 shadow-[12px_12px_0_0_#000]">
