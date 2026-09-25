@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import Sidebar from '../components/layout/Sidebar';
 import Overview from '../components/dashboard/Overview';
+import SolvedIssues from './SolvedIssues';
 
 const Heatmap = lazy(() => import('../components/dashboard/Heatmap'));
 
@@ -54,9 +55,7 @@ const Dashboard = ({ user }) => {
           )}
 
           {activeTab === 'issues-solved' && (
-            <section className="mt-8 border-[3px] border-black bg-white p-8 text-xl font-bold text-black shadow-[8px_8px_0_0_#000]">
-              Analytics is being connected to the reporting pipeline.
-            </section>
+            <SolvedIssues villageId={villageId} />
           )}
         </div>
       </main>

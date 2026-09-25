@@ -2,7 +2,7 @@ const Sidebar = ({ activeTab, setActiveTab, onLogout }) => {
   const menuItems = [
     { id: 'overview', label: 'Overview' },
     { id: 'heatmap', label: 'Heatmap' },
-    { id: 'issues-solved', label: 'Analytics' },
+    { id: 'issues-solved', label: 'Solved Issues' },
   ];
 
   return (

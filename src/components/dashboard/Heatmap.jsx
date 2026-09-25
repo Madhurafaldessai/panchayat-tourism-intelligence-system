@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { MapContainer, TileLayer, useMap } from 'react-leaflet';
+import { CircleMarker, MapContainer, Popup, TileLayer, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.heat/dist/leaflet-heat.js';
@@ -14,6 +14,15 @@ const severityWeight = {
   low: 0.4,
 };
 
+const severityColor = {
+  critical: '#ef4444',
+  urgent: '#ef4444',
+  high: '#fb923c',
+  medium: '#facc15',
+  moderate: '#facc15',
+  low: '#bef264',
+};
+
 const toHeatPoint = (issue) => {
   const latitude = Number(issue.latitude);
   const longitude = Number(issue.longitude);
@@ -23,11 +32,17 @@ const toHeatPoint = (issue) => {
   }
 
   const severity = String(issue.severity || issue.status || '').toLowerCase();
-  return [latitude, longitude, severityWeight[severity] || 0.5];
+  return {
+    ...issue,
+    latitude,
+    longitude,
+    intensity: severityWeight[severity] || 0.5,
+  };
 };
 
-function HeatmapLayer({ points }) {
+function HeatmapLayer({ reports }) {
   const map = useMap();
+  const points = reports.map((report) => [report.latitude, report.longitude, report.intensity]);
 
   useEffect(() => {
     if (!points.length) return undefined;
@@ -45,6 +60,28 @@ function HeatmapLayer({ points }) {
   return null;
 }
 
+function ReportMarkers({ reports }) {
+  return reports.map((report) => {
+    const severity = String(report.severity || report.status || '').toLowerCase();
+    const color = severityColor[severity] || '#facc15';
+
+    return (
+      <CircleMarker
+        key={report.id}
+        center={[report.latitude, report.longitude]}
+        radius={12}
+        pathOptions={{ color: '#000', weight: 3, fillColor: color, fillOpacity: 0.95 }}
+      >
+        <Popup>
+          <strong>{report.title || report.category || 'Citizen report'}</strong>
+          <br />
+          {report.status || 'submitted'}
+        </Popup>
+      </CircleMarker>
+    );
+  });
+}
+
 function MapResize() {
   const map = useMap();
 
@@ -57,27 +94,34 @@ function MapResize() {
 }
 
 const Heatmap = ({ villageId }) => {
-  const [points, setPoints] = useState([]);
+  const [mappedReports, setMappedReports] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const goaCenter = [15.3593, 74.054];
 
   const loadPoints = useCallback(async () => {
+    if (!villageId) {
+      setError('This administrator does not have a village assigned.');
+      setMappedReports([]);
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     const { data, error: queryError } = await supabase
-      .from('issues')
-      .select('latitude, longitude, severity, status')
+      .from('reports')
+      .select('id, category, title, latitude, longitude, severity, status')
       .eq('village_id', villageId)
       .limit(1000);
 
     if (queryError) {
       setError('Map data is unavailable.');
-      setPoints([]);
+      setMappedReports([]);
       setIsLoading(false);
       return;
     }
 
-    setPoints((data || []).map(toHeatPoint).filter(Boolean));
+    setMappedReports((data || []).map(toHeatPoint).filter(Boolean));
     setError(null);
     setIsLoading(false);
   }, [villageId]);
@@ -85,11 +129,13 @@ const Heatmap = ({ villageId }) => {
   useEffect(() => {
     void loadPoints();
 
+    if (!villageId) return undefined;
+
     const channel = supabase
       .channel('admin-issues-heatmap')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'issues', filter: `village_id=eq.${villageId}` },
+        { event: '*', schema: 'public', table: 'reports', filter: `village_id=eq.${villageId}` },
         loadPoints,
       )
       .subscribe();
@@ -118,7 +164,7 @@ const Heatmap = ({ villageId }) => {
 
       {(isLoading || error || !isLoading) && (
         <div className="pointer-events-none absolute bottom-4 left-4 z-[1000] border-2 border-black bg-white px-3 py-2 text-xs font-bold shadow-[3px_3px_0_0_#000]" role="status">
-          {isLoading ? 'Loading reports…' : error || `${points.length} mapped reports`}
+          {isLoading ? 'Loading reports…' : error || `${mappedReports.length} mapped reports`}
         </div>
       )}
 
@@ -126,7 +172,8 @@ const Heatmap = ({ villageId }) => {
         <MapContainer center={goaCenter} zoom={10.5} style={{ height: '100%', width: '100%' }} scrollWheelZoom zoomControl={false}>
           <MapResize />
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap contributors" />
-          <HeatmapLayer points={points} />
+          <HeatmapLayer reports={mappedReports} />
+          <ReportMarkers reports={mappedReports} />
         </MapContainer>
       </div>
     </div>

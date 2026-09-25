@@ -17,12 +17,20 @@ const Overview = ({ setActiveTab, villageId }) => {
   const [error, setError] = useState(null);
   const [sortBy, setSortBy] = useState('recent');
   const [selectedIssueId, setSelectedIssueId] = useState(null);
+  const [updatingIssueId, setUpdatingIssueId] = useState(null);
+  const [actionError, setActionError] = useState(null);
 
   const loadIssues = useCallback(async () => {
+    if (!villageId) {
+      setError('This administrator does not have a village assigned.');
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     const { data, error: queryError } = await supabase
-      .from('issues')
-      .select('id, citizen_name, type, status, created_at')
+      .from('reports')
+      .select('id, citizen_name, category, title, description, severity, status, image_url, location_name, latitude, longitude, created_at, resolved_at')
       .eq('village_id', villageId)
       .order('created_at', { ascending: false })
       .limit(100);
@@ -38,14 +46,43 @@ const Overview = ({ setActiveTab, villageId }) => {
     setIsLoading(false);
   }, [villageId]);
 
+  const handleMarkSolved = async (issue) => {
+    setUpdatingIssueId(issue.id);
+    setActionError(null);
+    const { data, error: updateError } = await supabase
+      .from('reports')
+      .update({
+        status: 'solved',
+        resolved_at: new Date().toISOString(),
+        resolution_description: 'Marked as solved by the village administrator.',
+      })
+      .eq('id', issue.id)
+      .eq('village_id', villageId);
+
+    if (updateError) {
+      setActionError(updateError.message || 'The report could not be updated.');
+      setUpdatingIssueId(null);
+      return;
+    }
+
+    setIssues((currentIssues) => currentIssues.map((currentIssue) => (
+      currentIssue.id === issue.id
+        ? { ...currentIssue, status: 'solved', resolved_at: new Date().toISOString() }
+        : currentIssue
+    )));
+    setUpdatingIssueId(null);
+  };
+
   useEffect(() => {
     void loadIssues();
+
+    if (!villageId) return undefined;
 
     const channel = supabase
       .channel('admin-issues-overview')
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'issues', filter: `village_id=eq.${villageId}` },
+        { event: '*', schema: 'public', table: 'reports', filter: `village_id=eq.${villageId}` },
         loadIssues,
       )
       .subscribe();
@@ -57,9 +94,9 @@ const Overview = ({ setActiveTab, villageId }) => {
 
   const stats = useMemo(
     () => ({
-      urgent: issues.filter((issue) => ['urgent', 'critical'].includes(normaliseStatus(issue.status))).length,
-      unassigned: issues.filter((issue) => ['pending', 'unassigned'].includes(normaliseStatus(issue.status))).length,
-      resolved: issues.filter((issue) => ['resolved', 'closed'].includes(normaliseStatus(issue.status))).length,
+      urgent: issues.filter((issue) => ['high', 'critical'].includes(normaliseStatus(issue.severity))).length,
+      unassigned: issues.filter((issue) => ['waiting_for_internet', 'submitted', 'under_review'].includes(normaliseStatus(issue.status))).length,
+      resolved: issues.filter((issue) => ['solved', 'resolved', 'closed'].includes(normaliseStatus(issue.status))).length,
     }),
     [issues],
   );
@@ -179,7 +216,7 @@ const Overview = ({ setActiveTab, villageId }) => {
               <thead className="sr-only">
                 <tr>
                   <th scope="col">Reporter</th>
-                  <th scope="col">Issue type</th>
+                  <th scope="col">Category</th>
                   <th scope="col">Status</th>
                   <th scope="col">Action</th>
                 </tr>
@@ -194,8 +231,8 @@ const Overview = ({ setActiveTab, villageId }) => {
                       {issue.citizen_name || 'Citizen User'}
                     </td>
                     <td className="py-4">
-                      <div className="font-bold text-black">{issue.type || 'Uncategorised'}</div>
-                      <div className="text-xs text-gray-500">Issue Type</div>
+                      <div className="font-bold text-black">{issue.category || 'Uncategorised'}</div>
+                      <div className="text-xs text-gray-500">Category</div>
                     </td>
                     <td className="py-4">
                       <div className="text-xs font-bold uppercase tracking-wider text-black">{issue.status || 'pending'}</div>
@@ -231,24 +268,98 @@ const Overview = ({ setActiveTab, villageId }) => {
           </div>
 
           {selectedIssue && (
-            <aside className="mt-6 border-2 border-black bg-gray-50 p-5" aria-live="polite">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h3 className="font-serif text-xl font-bold">Issue details</h3>
-                  <p className="mt-2 text-sm">
-                    {selectedIssue.type || 'Uncategorised'} · {selectedIssue.status || 'pending'} · Reported by{' '}
-                    {selectedIssue.citizen_name || 'Citizen User'}
-                  </p>
+            <div
+              className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/60 p-4"
+              role="presentation"
+              onMouseDown={(event) => {
+                if (event.target === event.currentTarget) setSelectedIssueId(null);
+              }}
+            >
+              <section
+                className="max-h-[90vh] w-full max-w-2xl overflow-y-auto border-[3px] border-black bg-white p-6 shadow-[10px_10px_0_0_#bef264]"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="issue-details-heading"
+              >
+                <div className="flex items-start justify-between gap-4 border-b-2 border-black pb-4">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-widest text-gray-500">Report details</p>
+                    <h3 id="issue-details-heading" className="mt-1 font-serif text-3xl font-black">
+                      {selectedIssue.title || selectedIssue.category || 'Citizen report'}
+                    </h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedIssueId(null)}
+                    className="border-2 border-black bg-white px-3 py-2 text-xs font-black uppercase hover:bg-black hover:text-white"
+                  >
+                    Close
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setSelectedIssueId(null)}
-                  className="border-2 border-black bg-white px-3 py-1 text-xs font-bold uppercase"
-                >
-                  Close
-                </button>
-              </div>
-            </aside>
+
+                <div className="grid gap-5 py-5 md:grid-cols-[minmax(0,1fr)_14rem]">
+                  <div className="space-y-4 text-sm">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-widest text-gray-500">Description</p>
+                      <p className="mt-1 font-medium text-gray-800">{selectedIssue.description || 'No description provided.'}</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-widest text-gray-500">Citizen</p>
+                        <p className="mt-1 font-bold">{selectedIssue.citizen_name || 'Citizen User'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-widest text-gray-500">Category</p>
+                        <p className="mt-1 font-bold">{selectedIssue.category || 'Uncategorised'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-widest text-gray-500">Status</p>
+                        <p className="mt-1 font-bold uppercase">{selectedIssue.status || 'submitted'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-widest text-gray-500">Severity</p>
+                        <p className="mt-1 font-bold uppercase">{selectedIssue.severity || 'Not provided'}</p>
+                      </div>
+                    </div>
+                    {(selectedIssue.location_name || selectedIssue.latitude) && (
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-widest text-gray-500">Location</p>
+                        <p className="mt-1 font-bold">
+                          {selectedIssue.location_name || `${selectedIssue.latitude}, ${selectedIssue.longitude}`}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {selectedIssue.image_url && (
+                    <img src={selectedIssue.image_url} alt="Reported issue" className="h-56 w-full border-2 border-black object-cover" />
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-4 border-t-2 border-black pt-4">
+                  <p className="text-xs font-bold text-gray-500">
+                    Submitted {new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(selectedIssue.created_at))}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => handleMarkSolved(selectedIssue)}
+                    disabled={updatingIssueId === selectedIssue.id || normaliseStatus(selectedIssue.status) === 'solved'}
+                    className="border-2 border-black bg-[#bef264] px-4 py-3 text-xs font-black uppercase tracking-widest shadow-[4px_4px_0_0_#000] transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {updatingIssueId === selectedIssue.id
+                      ? 'Saving…'
+                      : normaliseStatus(selectedIssue.status) === 'solved'
+                        ? 'Solved'
+                        : 'Mark as solved'}
+                  </button>
+                </div>
+                {actionError && (
+                  <p className="mt-4 border-2 border-black bg-[#fda4af] p-3 text-sm font-bold" role="alert">
+                    {actionError}
+                  </p>
+                )}
+              </section>
+            </div>
           )}
         </section>
       </section>
@@ -271,7 +382,7 @@ const Overview = ({ setActiveTab, villageId }) => {
           </div>
           <div className="pointer-events-none relative z-10 flex-1 overflow-hidden border-2 border-black bg-gray-100">
             <Suspense fallback={<MapLoading />}>
-              <Heatmap />
+              <Heatmap villageId={villageId} />
             </Suspense>
           </div>
         </div>

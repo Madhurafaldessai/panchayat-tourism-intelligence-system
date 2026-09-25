@@ -19,7 +19,7 @@ function App() {
     let isMounted = true;
 
     const loadSession = async () => {
-      const { data } = await supabase.auth.getSession();
+      const { data } = await supabase.auth.refreshSession();
       if (isMounted) {
         setSession(data.session);
         setLoading(false);
