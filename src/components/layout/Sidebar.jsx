@@ -2,11 +2,12 @@ const Sidebar = ({ activeTab, setActiveTab, onLogout }) => {
   const menuItems = [
     { id: 'overview', label: 'Overview' },
     { id: 'heatmap', label: 'Heatmap' },
+    { id: 'analytics', label: 'Analytics' },
     { id: 'issues-solved', label: 'Solved Issues' },
   ];
 
   return (
-    <aside className="z-50 flex w-full shrink-0 flex-col border-b-2 border-black bg-white py-4 lg:min-h-screen lg:w-60 lg:border-b-0 lg:border-r-2 lg:py-8">
+    <aside className="z-50 flex w-full shrink-0 flex-col border-b-2 border-black bg-white py-4 lg:sticky lg:top-0 lg:h-screen lg:self-start lg:w-60 lg:border-b-0 lg:border-r-2 lg:py-8">
       <div className="mb-4 px-6 lg:mb-16 lg:px-8">
         <div className="flex h-10 w-45 items-center justify-center border-2 border-black font-serif text-xl font-bold">
           AdminPortal

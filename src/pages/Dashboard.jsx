@@ -6,6 +6,7 @@ import Overview from '../components/dashboard/Overview';
 import SolvedIssues from './SolvedIssues';
 
 const Heatmap = lazy(() => import('../components/dashboard/Heatmap'));
+const Analytics = lazy(() => import('../components/dashboard/Analytics'));
 
 const MapLoading = () => (
   <div className="flex h-full min-h-80 items-center justify-center border-2 border-black bg-gray-100 p-6 text-center text-sm font-bold uppercase tracking-widest">
@@ -52,6 +53,12 @@ const Dashboard = ({ user }) => {
                 <Heatmap villageId={villageId} />
               </Suspense>
             </section>
+          )}
+
+          {activeTab === 'analytics' && (
+            <Suspense fallback={<div className="mt-8 border-2 border-black bg-gray-100 p-8 text-center text-sm font-bold uppercase tracking-widest">Loading analytics…</div>}>
+              <Analytics villageId={villageId} />
+            </Suspense>
           )}
 
           {activeTab === 'issues-solved' && (

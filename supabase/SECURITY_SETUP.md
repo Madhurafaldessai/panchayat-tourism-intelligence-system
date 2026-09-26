@@ -82,6 +82,23 @@ with check (
 
 Use a Supabase Edge Function (or another server endpoint) for future citizen report submissions. It should validate category, message length, coordinate bounds, media type/size, CAPTCHA or rate limits, deduplicate reports, enqueue the work, and insert with a service role. Do not make `issues` broadly writable from anonymous browsers.
 
+## Admin read access to report feedback
+
+Run [`report_feedback_admin_read_policy.sql`](report_feedback_admin_read_policy.sql) in the Supabase SQL Editor. It grants authenticated users table-level `SELECT` and uses RLS to limit admins to feedback on reports in their own village.
+
+Keep citizen feedback writes governed by the citizen-side policies; this admin policy grants read access only.
+
+## Additional resolution images
+
+The dashboard keeps the first admin resolution image in `resolution_image_url` and appends subsequent images to this array. Run this migration before deploying the dashboard update:
+
+```sql
+alter table public.reports
+add column if not exists resolution_image_urls text[] not null default '{}'::text[];
+```
+
+The existing village-scoped report update policy must allow administrators to update reports in their village.
+
 ## Hosting controls
 
 Set HTTPS-only, Content-Security-Policy, Referrer-Policy, `X-Content-Type-Options: nosniff`, and clickjacking protection at the host/CDN. GitHub Pages cannot set custom response headers, so use a host/CDN with header controls before a production launch. Restrict Supabase Auth redirect URLs and allowed origins to the final site domain.

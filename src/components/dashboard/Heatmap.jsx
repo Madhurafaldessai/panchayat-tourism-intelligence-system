@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { CircleMarker, MapContainer, Popup, TileLayer, useMap } from 'react-leaflet';
+import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.heat/dist/leaflet-heat.js';
@@ -15,12 +15,73 @@ const severityWeight = {
 };
 
 const severityColor = {
-  critical: '#ef4444',
-  urgent: '#ef4444',
-  high: '#fb923c',
+  high: '#ef4444',
   medium: '#facc15',
   moderate: '#facc15',
   low: '#bef264',
+};
+
+const clusterReports = (reports) => {
+  const grouped = new Map();
+
+  reports.forEach((report) => {
+    const latitude = Number(report.latitude);
+    const longitude = Number(report.longitude);
+
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
+
+    const bucketLat = Math.round(latitude / 0.005) * 0.005;
+    const bucketLng = Math.round(longitude / 0.005) * 0.005;
+    const key = `${bucketLat.toFixed(4)}:${bucketLng.toFixed(4)}`;
+
+    if (!grouped.has(key)) {
+      grouped.set(key, { latitude: bucketLat, longitude: bucketLng, count: 0, severity: 'low', category: report.category || 'General issue' });
+    }
+
+    const cluster = grouped.get(key);
+    cluster.count += 1;
+
+    const severity = String(report.severity || report.status || '').toLowerCase();
+    const severityRank = { low: 1, medium: 2, high: 3, moderate: 2 };
+    if ((severityRank[severity] || 0) > (severityRank[cluster.severity] || 0)) {
+      cluster.severity = severity;
+    }
+    if (cluster.count > 1) {
+      cluster.category = report.category || cluster.category;
+    }
+  });
+
+  return Array.from(grouped.values()).map((cluster) => ({
+    ...cluster,
+    id: `${cluster.latitude}-${cluster.longitude}`,
+    title: `${cluster.count} reports in this area`,
+  }));
+};
+
+const getIssueKind = (issue) => {
+  const category = String(issue.category || issue.title || '').toLowerCase();
+
+  if (category.includes('water') || category.includes('drinking') || category.includes('sanitation')) {
+    return '💧';
+  }
+
+  if (category.includes('waste') || category.includes('garbage') || category.includes('litter') || category.includes('trash')) {
+    return '🗑️';
+  }
+
+  if (category.includes('noise') || category.includes('sound') || category.includes('music')) {
+    return '🔊';
+  }
+
+  if (category.includes('traffic') || category.includes('congestion') || category.includes('parking') || category.includes('road')) {
+    return '🚗';
+  }
+
+  if (category.includes('crowd') || category.includes('festival') || category.includes('event')) {
+    return '👥';
+  }
+
+  return '⚠️';
 };
 
 const toHeatPoint = (issue) => {
@@ -61,23 +122,45 @@ function HeatmapLayer({ reports }) {
 }
 
 function ReportMarkers({ reports }) {
-  return reports.map((report) => {
-    const severity = String(report.severity || report.status || '').toLowerCase();
+  return clusterReports(reports).map((cluster) => {
+    const severity = String(cluster.severity || 'medium').toLowerCase();
     const color = severityColor[severity] || '#facc15';
+    const iconSize = Math.min(48, 24 + cluster.count * 6);
+    const icon = L.divIcon({
+      className: 'issue-map-marker',
+      html: `
+        <div style="
+          width: ${iconSize}px;
+          height: ${iconSize}px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 50%;
+          border: 3px solid #000;
+          background: ${color};
+          box-shadow: 3px 3px 0 rgba(0,0,0,1);
+          font-size: ${cluster.count > 1 ? '12px' : '16px'};
+          font-weight: 900;
+          line-height: 1;
+          color: #000;
+          transform: translateY(-2px);
+        ">${cluster.count > 1 ? cluster.count : getIssueKind(cluster)}</div>
+      `,
+      iconSize: [iconSize, iconSize],
+      iconAnchor: [iconSize / 2, iconSize / 2],
+      popupAnchor: [0, -10],
+    });
 
     return (
-      <CircleMarker
-        key={report.id}
-        center={[report.latitude, report.longitude]}
-        radius={12}
-        pathOptions={{ color: '#000', weight: 3, fillColor: color, fillOpacity: 0.95 }}
-      >
+      <Marker key={cluster.id} position={[cluster.latitude, cluster.longitude]} icon={icon}>
         <Popup>
-          <strong>{report.title || report.category || 'Citizen report'}</strong>
+          <strong>{cluster.title}</strong>
           <br />
-          {report.status || 'submitted'}
+          {cluster.category}
+          <br />
+          Severity: {severity}
         </Popup>
-      </CircleMarker>
+      </Marker>
     );
   });
 }
